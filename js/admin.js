@@ -1,5 +1,6 @@
-import { db, initNav, esc, msg, busy } from './app.js';
-import { collection, doc, getDocs, query, orderBy, limit, writeBatch, serverTimestamp, Timestamp }
+import { db, initNav, esc, msg, busy, reveal } from './app.js';
+import { SERVICES, TYPES, ICONS } from './services.js';
+import { collection, doc, getDocs, query, orderBy, limit, where, writeBatch, serverTimestamp, Timestamp }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const me = await initNav();
@@ -10,7 +11,7 @@ else {
   const out = document.getElementById('msg');
   const fmt = (t) => (t && t.toDate) ? t.toDate().toLocaleDateString('ar') : '—';
   const ACTIONS = { invite_created: 'إنشاء رمز دعوة', invite_revoked: 'إلغاء رمز دعوة',
-    account_activated: 'تفعيل حساب', account_deactivated: 'تعطيل حساب' };
+    account_activated: 'تفعيل حساب', account_deactivated: 'تعطيل حساب', request_updated: 'تحديث طلب' };
   const fail = (t) => msg(out, 'error', t);
 
   const genCode = () => {
@@ -54,25 +55,40 @@ else {
         '<tr><td colspan="3">لا توجد عمليات مسجّلة بعد.</td></tr>';
     } catch (e) {}
   }
-  const reload = () => { loadInvites(); loadAccounts(); loadAudit(); };
+  async function loadCounts() {
+    try {
+      const sn = await getDocs(query(collection(db, 'requests'), where('status', '==', 'new')));
+      const c = {}; sn.docs.forEach((d) => { c[d.data().type] = (c[d.data().type] || 0) + 1; });
+      document.getElementById('counts').innerHTML = TYPES.map((t) => '<a class="stat reveal" href="admin-requests.html?type=' + t + '&status=new"><span class="ic sm">' + ICONS[t] + '</span><strong>' + (c[t] || 0) + '</strong><small>' + esc(SERVICES[t].label) + ' — جديد</small></a>').join('');
+      reveal(document);
+    } catch (e) {}
+  }
+  const reload = () => { loadInvites(); loadAccounts(); loadAudit(); loadCounts(); };
 
   document.getElementById('form-invite').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = e.target.querySelector('button[type=submit]'); busy(btn, true, 'جارٍ الإنشاء…');
+    const im = document.getElementById('msg-invite');
+    const btn = e.target.querySelector('button[type=submit]');
     const label = document.getElementById('i-label').value.trim();
-    const max = parseInt(document.getElementById('i-max').value, 10);
+    const rawMax = document.getElementById('i-max').value.trim();
     const d = document.getElementById('i-exp').value;
+    // عدد صحيح فقط: 1 أو 2 أو 3 ... (لا كسور ولا رموز)
+    if (!label) return msg(im, 'error', 'اكتبي اسمًا للرمز.');
+    if (!/^[0-9]+$/.test(rawMax) || Number(rawMax) < 1 || Number(rawMax) > 500)
+      return msg(im, 'error', 'عدد الاستخدامات يجب أن يكون عددًا صحيحًا من 1 إلى 500 (مثل 1 أو 2 أو 30)، بدون كسور.');
+    const max = Number(rawMax);
+    if (d && new Date(d + 'T23:59:59') <= new Date()) return msg(im, 'error', 'تاريخ الانتهاء يجب أن يكون في المستقبل.');
+    busy(btn, true, 'جارٍ الإنشاء…');
     try {
-      if (!label || !(max >= 1 && max <= 500)) throw new Error('bad');
-      const code = genCode(), b = writeBatch(db);
-      b.set(doc(db, 'invites', code), { label, maxUses: max, uses: 0,
+      const code = genCode(), bt = writeBatch(db);
+      bt.set(doc(db, 'invites', code), { label, maxUses: max, uses: 0,
         expiresAt: d ? Timestamp.fromDate(new Date(d + 'T23:59:59')) : null,
         revoked: false, createdAt: serverTimestamp(), createdBy: me.uid });
-      audit(b, 'invite_created', label);
-      await b.commit();
-      msg(out, 'success', 'تم إنشاء الرمز: ' + code.slice(0, 5) + '-' + code.slice(5) + ' (يظهر أيضًا في القائمة أدناه).');
-      e.target.reset(); document.getElementById('i-max').value = 30; reload();
-    } catch (err) { fail('تعذّر إنشاء الرمز. تأكدي من الاسم وعدد الاستخدامات (1 إلى 500) وأن تاريخ الانتهاء في المستقبل.'); }
+      audit(bt, 'invite_created', label);
+      await bt.commit();
+      msg(im, 'success', 'تم إنشاء الرمز: ' + code.slice(0, 5) + '-' + code.slice(5) + ' (يظهر أيضًا في القائمة أدناه).');
+      document.getElementById('i-label').value = ''; document.getElementById('i-exp').value = ''; document.getElementById('i-max').value = 30; reload();
+    } catch (err) { msg(im, 'error', 'تعذّر إنشاء الرمز. تحققي من الاتصال وأعيدي المحاولة.'); }
     busy(btn, false);
   });
 

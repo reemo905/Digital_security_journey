@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const app = initializeApp(firebaseConfig);
@@ -16,10 +16,26 @@ export function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-export function msg(el, type, text) { el.className = 'msg msg-' + type; el.textContent = text; el.hidden = false; }
+const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// الرسالة تظهر ثم تُمرَّر الشاشة إليها، حتى تراها مستخدمة الهاتف
+export function msg(el, type, text) {
+  el.className = 'msg msg-' + type; el.textContent = text; el.hidden = false;
+  try { el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }); } catch (e) {}
+}
+// ظهور تدريجي للعناصر عند التمرير
+document.documentElement.classList.add('js');
+export function reveal(root) {
+  const els = (root || document).querySelectorAll('.reveal:not(.in)');
+  if (!('IntersectionObserver' in window) || reduce) { els.forEach((e) => e.classList.add('in')); return; }
+  const io = new IntersectionObserver((en) => en.forEach((x) => { if (x.isIntersecting) { x.target.classList.add('in'); io.unobserve(x.target); } }), { threshold: 0.08 });
+  els.forEach((e, i) => { e.style.transitionDelay = Math.min(i * 60, 360) + 'ms'; io.observe(e); });
+}
+export function auditLog(batch, actorUid, action, target) {
+  batch.set(doc(collection(db, 'auditLog')), { action, target: String(target).slice(0, 200), actor: actorUid, createdAt: serverTimestamp() });
+}
 export function busy(btn, on, label) {
-  if (on) { btn.dataset.label = btn.textContent; btn.textContent = label || 'جارٍ التنفيذ…'; btn.disabled = true; }
-  else { btn.textContent = btn.dataset.label || btn.textContent; btn.disabled = false; }
+  if (on) { btn.dataset.label = btn.textContent; btn.textContent = label || 'جارٍ التنفيذ…'; btn.disabled = true; btn.classList.add('loading'); }
+  else { btn.textContent = btn.dataset.label || btn.textContent; btn.disabled = false; btn.classList.remove('loading'); }
 }
 export function authReady() {
   return new Promise((res) => { const off = onAuthStateChanged(auth, (u) => { off(); res(u); }); });
@@ -42,8 +58,10 @@ export async function initNav() {
   try { p = await getProfile(); } catch (e) { p = null; }
   if (p && !p.active) { await fbSignOut(auth); p = null; }
   const show = (id, v) => { const e = document.getElementById(id); if (e) e.hidden = !v; };
-  show('nav-login', !p); show('nav-logout', !!p); show('nav-admin', !!(p && p.isAdmin));
+  show('nav-login', !p); show('nav-logout', !!p); show('nav-requests', !!p && !p.isAdmin); show('nav-admin', !!(p && p.isAdmin));
   const out = document.getElementById('nav-logout');
   if (out) out.onclick = (ev) => { ev.preventDefault(); signOut(); };
+  window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
+  reveal();
   return p;
 }

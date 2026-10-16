@@ -8,10 +8,11 @@ const tabs = { login: document.getElementById('tab-login'), signup: document.get
 const forms = { login: document.getElementById('form-login'), signup: document.getElementById('form-signup') };
 const out = document.getElementById('msg');
 const $ = (id) => document.getElementById(id);
+forms.login.appendChild(out);   // الرسالة تظهر دائمًا أسفل زر الإرسال
 
 function show(which) {
   for (const k of ['login', 'signup']) { forms[k].hidden = k !== which; tabs[k].setAttribute('aria-selected', String(k === which)); }
-  out.hidden = true;
+  forms[which].appendChild(out); out.hidden = true;
 }
 tabs.login.onclick = () => show('login');
 tabs.signup.onclick = () => show('signup');
@@ -21,6 +22,7 @@ const netErr = (e) => e && (e.code === 'auth/network-request-failed' || e.code =
 
 forms.login.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (!$('l-user').value.trim() || !$('l-pass').value) return msg(out, 'error', 'اكتبي اسم المستخدم وكلمة المرور.');
   const btn = forms.login.querySelector('button[type=submit]'); busy(btn, true, 'جارٍ الدخول…');
   try {
     await signInWithEmailAndPassword(auth, toEmail($('l-user').value), $('l-pass').value);
