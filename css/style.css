@@ -98,3 +98,4 @@ footer{margin:40px 0 24px;text-align:center;color:var(--mute);font-size:.9rem}
 .notif:hover{transform:translateX(-3px)}.notif.unread{border-inline-start:5px solid var(--gold);background:#fffaf0;font-weight:500}.notif small{color:var(--mute);font-weight:400}
 .votes{font-size:1.05rem}.tabs-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}.tabs-row .btn{margin:0}
 h3+.pre{margin-top:0}
+.panel .note+.btn,#push .btn{margin-top:8px}#push p{margin:.3em 0}
