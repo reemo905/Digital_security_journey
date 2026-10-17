@@ -1,9 +1,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, collection, serverTimestamp, query, where, getCountFromServer } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, serverTimestamp, query, where, limit, onSnapshot, Timestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
@@ -22,7 +22,6 @@ export function msg(el, type, text) {
   el.className = 'msg msg-' + type; el.textContent = text; el.hidden = false;
   try { el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }); } catch (e) {}
 }
-// ظهور تدريجي للعناصر عند التمرير
 document.documentElement.classList.add('js');
 export function reveal(root) {
   const els = (root || document).querySelectorAll('.reveal:not(.in)');
@@ -48,9 +47,31 @@ export async function getProfile() {
   try { const s = await getDoc(doc(db, 'users', user.uid)); data = s.exists() ? s.data() : null; } catch (e) {}
   return { uid: user.uid, isAdmin,
     fullName: data ? data.fullName : (isAdmin ? 'رئيسة البرلمان' : ''),
+    createdAtMs: data && data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0,
     active: isAdmin || !!(data && data.isActive === true) };
 }
 export async function signOut() { await fbSignOut(auth); location.href = 'login.html'; }
+
+// ---------- شارات الإشعارات اللحظية (تتحدّث دون إعادة تحميل الصفحة) ----------
+let unsubs = [], cached = null;
+const setBadge = (id, n) => { const e = document.getElementById(id); if (!e) return; e.textContent = n > 99 ? '99+' : String(n); e.hidden = !(n > 0); };
+export async function refreshBadges() {
+  unsubs.forEach((u) => u()); unsubs = [];
+  const p = cached; if (!p) return;
+  try {
+    if (p.isAdmin) {
+      let seen = 0;
+      try { const s = await getDoc(doc(db, 'adminSeen', p.uid)); if (s.exists() && s.data().seenAt) seen = s.data().seenAt.toMillis(); } catch (e) {}
+      unsubs.push(onSnapshot(query(collection(db, 'adminFeed'), where('createdAt', '>', Timestamp.fromMillis(seen)), limit(100)), (sn) => setBadge('badge-notifs', sn.size), () => {}));
+    } else {
+      let seen = p.createdAtMs || 0;
+      try { const s = await getDoc(doc(db, 'seen', p.uid)); if (s.exists() && s.data().broadcastSeenAt) seen = Math.max(seen, s.data().broadcastSeenAt.toMillis()); } catch (e) {}
+      let a = 0, b = 0; const upd = () => setBadge('badge-notifs', a + b);
+      unsubs.push(onSnapshot(query(collection(db, 'notifications'), where('userId', '==', p.uid), where('read', '==', false), limit(100)), (sn) => { a = sn.size; upd(); }, () => {}));
+      unsubs.push(onSnapshot(query(collection(db, 'broadcasts'), where('createdAt', '>', Timestamp.fromMillis(seen)), limit(100)), (sn) => { b = sn.size; upd(); }, () => {}));
+    }
+  } catch (e) {}
+}
 
 // ضبط شريط التنقل (لتحسين التجربة فقط؛ الحماية الحقيقية في قواعد قاعدة البيانات)
 export async function initNav() {
@@ -58,13 +79,10 @@ export async function initNav() {
   try { p = await getProfile(); } catch (e) { p = null; }
   if (p && !p.active) { await fbSignOut(auth); p = null; }
   const show = (id, v) => { const e = document.getElementById(id); if (e) e.hidden = !v; };
-  show('nav-login', !p); show('nav-logout', !!p); show('nav-requests', !!p && !p.isAdmin); show('nav-admin', !!(p && p.isAdmin));
-  show('nav-notifs', !!p && !p.isAdmin);
-  const setBadge = (id, n) => { const e = document.getElementById(id); if (!e) return; e.textContent = n > 99 ? '99+' : String(n); e.hidden = !(n > 0); };
-  if (p) { try {
-    if (p.isAdmin) setBadge('badge-admin', (await getCountFromServer(query(collection(db, 'requests'), where('status', '==', 'new')))).data().count);
-    else setBadge('badge-notifs', (await getCountFromServer(query(collection(db, 'notifications'), where('userId', '==', p.uid), where('read', '==', false)))).data().count);
-  } catch (e) {} }
+  show('nav-login', !p); show('nav-logout', !!p); show('nav-admin', !!(p && p.isAdmin));
+  show('nav-requests', !!p && !p.isAdmin); show('nav-notifs', !!p);
+  const nn = document.getElementById('nav-notifs'); if (nn && p && p.isAdmin) nn.href = 'admin-notifications.html';
+  cached = p; if (p) refreshBadges();
   const out = document.getElementById('nav-logout');
   if (out) out.onclick = (ev) => { ev.preventDefault(); signOut(); };
   window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 4), { passive: true });

@@ -1,4 +1,5 @@
 import { db, initNav, esc, msg, busy, reveal, auditLog } from './app.js';
+import { notifyBestEffort } from './push.js';
 import { SERVICES, TYPES, ICONS, statusLabel, refCode, fmtDate, detailsHtml } from './services.js';
 import { collection, query, orderBy, limit, getDocs, getDoc, doc, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
@@ -72,15 +73,17 @@ else {
       if (sEl) upd.schedule = sEl.value.trim();
       b.update(doc(db, 'requests', cur.id), upd);
       if (note !== curNote) b.set(doc(db, 'adminNotes', cur.id), { note, updatedAt: serverTimestamp(), updatedBy: me.uid });
+      let pushText = '';
       const changed = status !== cur.status || reply !== (cur.reply || '') || (sEl && sEl.value.trim() !== (cur.schedule || ''));
       if (changed) {
         const tt = cur.title.length > 60 ? cur.title.slice(0, 60) + '…' : cur.title;
-        const text = (reply && reply !== (cur.reply || '')) ? 'وصلك ردّ على طلبك «' + tt + '». الحالة: ' + statusLabel(cur.type, status)
+        const text = pushText = (reply && reply !== (cur.reply || '')) ? 'وصلك ردّ على طلبك «' + tt + '». الحالة: ' + statusLabel(cur.type, status)
           : 'تم تحديث طلبك «' + tt + '». الحالة: ' + statusLabel(cur.type, status);
         b.set(doc(collection(db, 'notifications')), { userId: cur.ownerId, kind: 'request_update', requestId: cur.id, text, read: false, createdAt: serverTimestamp() });
       }
       auditLog(b, me.uid, 'request_updated', refCode(cur.id) + ' → ' + statusLabel(cur.type, status));
       await b.commit();
+      if (pushText) notifyBestEffort({ type: 'user', targetUid: cur.ownerId, page: 'requests', title: 'تحديث على طلبك', body: pushText });
       cur.status = status; cur.reply = reply; if (sEl) cur.schedule = upd.schedule;
       busy(btn, false); dlg.close(); render(); msg(out, 'success', 'تم حفظ التعديلات.');
     } catch (err) { busy(btn, false); msg(dMsg, 'error', 'تعذّر حفظ التعديلات. أعيدي المحاولة.'); }

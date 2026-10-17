@@ -32,3 +32,11 @@ export const fdt = (ts) => (ts && ts.toDate) ? ts.toDate().toLocaleString('ar', 
 const p2 = (n) => String(n).padStart(2, '0');
 export const toInputDate = (ts) => { if (!ts || !ts.toDate) return ''; const d = ts.toDate(); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); };
 export const toInputDT = (ts) => { if (!ts || !ts.toDate) return ''; const d = ts.toDate(); return toInputDate(ts) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+// المحتوى الذي يُرسَل عنه إشعار للطالبات عند نشره
+export const BROADCAST = {
+  announcements: { kind: 'announcement', label: 'إعلان جديد', href: 'content.html?c=announcements', page: 'announcements' },
+  polls: { kind: 'poll', label: 'تصويت جديد', href: 'polls.html', page: 'polls' },
+  initiatives: { kind: 'initiative', label: 'مبادرة جديدة', href: 'content.html?c=initiatives', page: 'initiatives' },
+  achievements: { kind: 'achievement', label: 'إنجاز جديد', href: 'content.html?c=achievements', page: 'achievements' }
+};
+export const BY_KIND = Object.fromEntries(Object.values(BROADCAST).map((b) => [b.kind, b]));

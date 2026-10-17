@@ -1,5 +1,6 @@
 import { db, initNav, esc, msg, busy, reveal, auditLog } from './app.js';
-import { CONTENT, fdate, fdt, toInputDate, toInputDT } from './content.js';
+import { CONTENT, BROADCAST, fdate, fdt, toInputDate, toInputDT } from './content.js';
+import { notifyBestEffort } from './push.js';
 import { collection, doc, getDocs, query, orderBy, writeBatch, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 const me = await initNav();
 const name = new URLSearchParams(location.search).get('c'), C = CONTENT[name];
@@ -39,6 +40,7 @@ else {
     body.innerHTML = '<h2>' + (r ? 'تعديل' : 'إضافة') + ' ' + esc(C.one) + '</h2>' + C.fields.map((f) =>
       '<div class="field"><label for="c-' + f.k + '">' + esc(f.label) + ' ' + (f.required ? '<span class="req">(مطلوب)</span>' : '<span class="opt">(اختياري)</span>') + '</label>' + ctl(f, initial(f, r)) + '<p class="ferr" id="e-' + f.k + '" hidden></p></div>').join('') +
       (C.publishable ? '<div class="field"><label for="c-pub">حالة النشر</label><select id="c-pub"><option value="false"' + (r && r.published ? '' : ' selected') + '>مسودة (غير منشور)</option><option value="true"' + (r && r.published ? ' selected' : '') + '>منشور للطالبات</option></select></div>' : '') +
+      (BROADCAST[name] && C.publishable ? '<label class="check"><input type="checkbox" id="c-notify" checked> إرسال إشعار للطالبات عند النشر (إن لم يكن منشورًا من قبل)</label>' : '') +
       '<p class="note">لا تكتبي أسماء طالبات أو بيانات شخصية في المحتوى المنشور.</p>';
     dMsg.hidden = true; dlg.showModal();
   }
@@ -65,22 +67,31 @@ else {
       const b = writeBatch(db);
       if (C.publishable) { data.published = document.getElementById('c-pub').value === 'true';
         if (name === 'announcements') data.publishedAt = data.published ? ((cur && cur.published && cur.publishedAt) || serverTimestamp()) : null; }
-      if (!cur) { const full = Object.assign({}, data, { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: me.uid }); if (name === 'polls') full.voteCount = 0; b.set(doc(collection(db, name)), full); }
+      const newRef = doc(collection(db, name));
+      if (!cur) { const full = Object.assign({}, data, { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: me.uid }); if (name === 'polls') full.voteCount = 0; b.set(newRef, full); }
       else b.update(doc(db, name, cur.id), Object.assign({}, data, { updatedAt: serverTimestamp() }));
+      const nEl = document.getElementById('c-notify'), bc = BROADCAST[name];
+      const willNotify = !!(bc && C.publishable && data.published && (!cur || !cur.published) && nEl && nEl.checked);
+      const ttl = String(data[C.titleKey]).slice(0, 120);
+      if (willNotify) b.set(doc(collection(db, 'broadcasts')), { kind: bc.kind, title: ttl, refId: cur ? cur.id : newRef.id, createdAt: serverTimestamp() });
       auditLog(b, me.uid, 'content_saved', name + ': ' + String(data[C.titleKey]).slice(0, 80));
-      await b.commit(); busy(btn, false); dlg.close(); msg(out, 'success', 'تم الحفظ.'); load();
+      await b.commit(); busy(btn, false); dlg.close(); msg(out, 'success', willNotify ? 'تم الحفظ وإرسال الإشعار للطالبات.' : 'تم الحفظ.'); load();
+      if (willNotify) notifyBestEffort({ type: 'broadcast', page: bc.page, title: bc.label, body: ttl.slice(0, 150) });
     } catch (err) { busy(btn, false); msg(dMsg, 'error', 'تعذّر الحفظ. تحققي من الاتصال والحقول وأعيدي المحاولة.'); }
   };
   list.addEventListener('click', async (e) => {
     const t = e.target.dataset || {}, id = t.edit || t.pub || t.del; if (!id) return;
     const r = rows.find((x) => x.id === id); if (!r) return;
     if (t.edit) return openForm(r);
+    let pushAfter = null;
     try {
       const b = writeBatch(db);
       if (t.del) { if (!confirm('حذف «' + title(r) + '» نهائيًا؟ لا يمكن التراجع.')) return; b.delete(doc(db, name, id)); auditLog(b, me.uid, 'content_deleted', name + ': ' + String(title(r)).slice(0, 80)); }
       else { const upd = { published: !r.published, updatedAt: serverTimestamp() }; if (name === 'announcements') upd.publishedAt = !r.published ? serverTimestamp() : null;
-        b.update(doc(db, name, id), upd); auditLog(b, me.uid, r.published ? 'content_unpublished' : 'content_published', name + ': ' + String(title(r)).slice(0, 80)); }
-      await b.commit(); out.hidden = true; load();
+        b.update(doc(db, name, id), upd);
+        if (!r.published && BROADCAST[name]) { if (!confirm('سيصل إشعار للطالبات بنشر «' + title(r) + '». متابعة؟')) return; b.set(doc(collection(db, 'broadcasts')), { kind: BROADCAST[name].kind, title: String(title(r)).slice(0, 120), refId: id, createdAt: serverTimestamp() }); pushAfter = { type: 'broadcast', page: BROADCAST[name].page, title: BROADCAST[name].label, body: String(title(r)).slice(0, 150) }; }
+        auditLog(b, me.uid, r.published ? 'content_unpublished' : 'content_published', name + ': ' + String(title(r)).slice(0, 80)); }
+      await b.commit(); out.hidden = true; load(); if (pushAfter) notifyBestEffort(pushAfter);
     } catch (err) { msg(out, 'error', 'تعذّرت العملية.'); }
   });
   await load();

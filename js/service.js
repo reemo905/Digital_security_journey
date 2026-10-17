@@ -1,5 +1,6 @@
 import { db, initNav, esc, msg, busy } from './app.js';
 import { SERVICES } from './services.js';
+import { notifyBestEffort } from './push.js';
 import { collection, doc, getDoc, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const type = new URLSearchParams(location.search).get('type');
@@ -68,8 +69,10 @@ else {
     try {
       const b = writeBatch(db), ref = doc(collection(db, 'requests'));
       b.set(ref, { ownerId: p.uid, ownerName: p.fullName, type, title: val('title'), status: 'new', reply: '', details, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      b.set(doc(db, 'rateLimits', p.uid), { lastRequestAt: serverTimestamp() });   // تسجيل وقت الطلب لحساب المهلة
+      b.set(doc(db, 'rateLimits', p.uid), { lastRequestAt: serverTimestamp() });
+      b.set(doc(collection(db, 'adminFeed')), { kind: 'new_request', requestId: ref.id, title: val('title'), ownerName: p.fullName, requestType: type, createdAt: serverTimestamp() });   // إشعار للمديرة   // تسجيل وقت الطلب لحساب المهلة
       await b.commit();
+      await notifyBestEffort({ type: 'newRequest', requestId: ref.id });
       location.href = 'requests.html?sent=' + ref.id;   // لا نعرض النجاح إلا بعد نجاح الحفظ فعلًا
     } catch (err) {
       working = false; busy(btn, false);
