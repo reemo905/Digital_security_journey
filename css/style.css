@@ -103,3 +103,4 @@ h3+.pre{margin-top:0}
 .toc ol{margin:.4em 0 0;columns:2;column-gap:24px}.toc a{color:var(--teal-d)}
 footer a{color:var(--teal-d)}
 @media (max-width:560px){.toc ol{columns:1}}
+dialog .panel{box-shadow:none;margin:12px 0}dialog .code{font:700 1.3rem monospace;letter-spacing:.08em;user-select:all}
