@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, serverTimestamp, query, where, getCountFromServer } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const app = initializeApp(firebaseConfig);
@@ -59,6 +59,12 @@ export async function initNav() {
   if (p && !p.active) { await fbSignOut(auth); p = null; }
   const show = (id, v) => { const e = document.getElementById(id); if (e) e.hidden = !v; };
   show('nav-login', !p); show('nav-logout', !!p); show('nav-requests', !!p && !p.isAdmin); show('nav-admin', !!(p && p.isAdmin));
+  show('nav-notifs', !!p && !p.isAdmin);
+  const setBadge = (id, n) => { const e = document.getElementById(id); if (!e) return; e.textContent = n > 99 ? '99+' : String(n); e.hidden = !(n > 0); };
+  if (p) { try {
+    if (p.isAdmin) setBadge('badge-admin', (await getCountFromServer(query(collection(db, 'requests'), where('status', '==', 'new')))).data().count);
+    else setBadge('badge-notifs', (await getCountFromServer(query(collection(db, 'notifications'), where('userId', '==', p.uid), where('read', '==', false)))).data().count);
+  } catch (e) {} }
   const out = document.getElementById('nav-logout');
   if (out) out.onclick = (ev) => { ev.preventDefault(); signOut(); };
   window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 4), { passive: true });

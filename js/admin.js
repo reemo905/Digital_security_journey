@@ -11,7 +11,7 @@ else {
   const out = document.getElementById('msg');
   const fmt = (t) => (t && t.toDate) ? t.toDate().toLocaleDateString('ar') : '—';
   const ACTIONS = { invite_created: 'إنشاء رمز دعوة', invite_revoked: 'إلغاء رمز دعوة',
-    account_activated: 'تفعيل حساب', account_deactivated: 'تعطيل حساب', request_updated: 'تحديث طلب' };
+    account_activated: 'تفعيل حساب', account_deactivated: 'تعطيل حساب', request_updated: 'تحديث طلب', content_saved: 'حفظ محتوى', content_deleted: 'حذف محتوى', content_published: 'نشر محتوى', content_unpublished: 'إلغاء نشر محتوى' };
   const fail = (t) => msg(out, 'error', t);
 
   const genCode = () => {

@@ -72,6 +72,13 @@ else {
       if (sEl) upd.schedule = sEl.value.trim();
       b.update(doc(db, 'requests', cur.id), upd);
       if (note !== curNote) b.set(doc(db, 'adminNotes', cur.id), { note, updatedAt: serverTimestamp(), updatedBy: me.uid });
+      const changed = status !== cur.status || reply !== (cur.reply || '') || (sEl && sEl.value.trim() !== (cur.schedule || ''));
+      if (changed) {
+        const tt = cur.title.length > 60 ? cur.title.slice(0, 60) + '…' : cur.title;
+        const text = (reply && reply !== (cur.reply || '')) ? 'وصلك ردّ على طلبك «' + tt + '». الحالة: ' + statusLabel(cur.type, status)
+          : 'تم تحديث طلبك «' + tt + '». الحالة: ' + statusLabel(cur.type, status);
+        b.set(doc(collection(db, 'notifications')), { userId: cur.ownerId, kind: 'request_update', requestId: cur.id, text, read: false, createdAt: serverTimestamp() });
+      }
       auditLog(b, me.uid, 'request_updated', refCode(cur.id) + ' → ' + statusLabel(cur.type, status));
       await b.commit();
       cur.status = status; cur.reply = reply; if (sEl) cur.schedule = upd.schedule;

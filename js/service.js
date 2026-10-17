@@ -1,6 +1,6 @@
 import { db, initNav, esc, msg, busy } from './app.js';
 import { SERVICES } from './services.js';
-import { collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { collection, doc, getDoc, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const type = new URLSearchParams(location.search).get('type');
 const S = SERVICES[type];
@@ -24,8 +24,22 @@ else {
   };
   root.innerHTML = '<h1>' + esc(S.label) + '</h1><p class="note">' + esc(S.note) + '</p>' +
     '<form id="svc-form" class="panel" novalidate>' + all.map(html).join('') +
-    '<button class="btn" type="submit">إرسال</button><div id="msg" class="msg" role="alert" hidden></div></form>';
+    '<div id="cooldown" class="cooldown" role="status" aria-live="polite" hidden></div><button class="btn" type="submit">إرسال</button><div id="msg" class="msg" role="alert" hidden></div></form>';
   const out = document.getElementById('msg'), form = document.getElementById('svc-form');
+  const subBtn = form.querySelector('button[type=submit]'), cdBox = document.getElementById('cooldown');
+  const COOL_MS = 120000;
+  let last = 0, working = false;
+  async function loadLast() {
+    try { const r = await getDoc(doc(db, 'rateLimits', p.uid)); last = r.exists() && r.data().lastRequestAt ? r.data().lastRequestAt.toMillis() : 0; } catch (e) {}
+  }
+  const remainingMs = () => last ? Math.max(0, last + COOL_MS + 1500 - Date.now()) : 0;   // 1.5 ثانية هامش لفرق الساعة
+  function tick() {
+    const r = remainingMs(), sec = Math.ceil(r / 1000);
+    if (r > 0) { cdBox.hidden = false; cdBox.textContent = 'يمكنك إرسال طلب جديد بعد ' + String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0') + ' (نترك دقيقتين بين كل طلبين).'; }
+    else if (!cdBox.hidden) { cdBox.textContent = 'انتهت المهلة. يمكنك الآن إرسال الطلب.'; setTimeout(() => { if (!remainingMs()) cdBox.hidden = true; }, 4000); }
+    if (!working) subBtn.disabled = r > 0;
+  }
+  await loadLast(); tick(); setInterval(tick, 1000);
   const val = (k) => document.getElementById('f-' + k).value.trim();
 
   const setErr = (k, text) => {
@@ -48,17 +62,21 @@ else {
       setErr(f.k, err); if (err) { bad++; if (!first) first = f.k; }
     }
     if (bad) { msg(out, 'error', 'يوجد ' + bad + ' من الحقول تحتاج إلى تصحيح. راجعي الرسائل الحمراء تحت الحقول.'); document.getElementById('f-' + first).focus({ preventScroll: true }); return; }
-    const btn = form.querySelector('button[type=submit]'); busy(btn, true, 'جارٍ الإرسال…');
+    if (remainingMs() > 0) { tick(); return msg(out, 'error', 'يلزم الانتظار دقيقتين بين كل طلبين. انتظري انتهاء العدّاد ثم أرسلي.'); }
+    const btn = subBtn; working = true; busy(btn, true, 'جارٍ الإرسال…');
     const details = {}; S.fields.forEach((f) => { details[f.k] = val(f.k); });
     try {
-      const ref = await addDoc(collection(db, 'requests'), {
-        ownerId: p.uid, ownerName: p.fullName, type, title: val('title'), status: 'new', reply: '',
-        details, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      const b = writeBatch(db), ref = doc(collection(db, 'requests'));
+      b.set(ref, { ownerId: p.uid, ownerName: p.fullName, type, title: val('title'), status: 'new', reply: '', details, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      b.set(doc(db, 'rateLimits', p.uid), { lastRequestAt: serverTimestamp() });   // تسجيل وقت الطلب لحساب المهلة
+      await b.commit();
       location.href = 'requests.html?sent=' + ref.id;   // لا نعرض النجاح إلا بعد نجاح الحفظ فعلًا
     } catch (err) {
-      msg(out, 'error', (err && err.code === 'unavailable') ? 'تعذّر الاتصال بالإنترنت، ولم يُحفظ طلبك. أعيدي المحاولة (بياناتك ما زالت في النموذج).'
+      working = false; busy(btn, false);
+      await loadLast(); tick();
+      msg(out, 'error', remainingMs() > 0 ? 'لم يُحفظ الطلب لأن المهلة بين الطلبات لم تنتهِ بعد. انتظري العدّاد ثم أعيدي الإرسال (بياناتك ما زالت في النموذج).'
+        : (err && err.code === 'unavailable') ? 'تعذّر الاتصال بالإنترنت، ولم يُحفظ طلبك. أعيدي المحاولة (بياناتك ما زالت في النموذج).'
         : 'تعذّر حفظ الطلب. تأكدي من الحقول وأعيدي المحاولة، وبياناتك ما زالت في النموذج.');
-      busy(btn, false);
     }
   });
 }
