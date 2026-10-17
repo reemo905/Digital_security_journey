@@ -80,7 +80,7 @@ export async function initNav() {
   if (p && !p.active) { await fbSignOut(auth); p = null; }
   const show = (id, v) => { const e = document.getElementById(id); if (e) e.hidden = !v; };
   show('nav-login', !p); show('nav-logout', !!p); show('nav-admin', !!(p && p.isAdmin));
-  show('nav-requests', !!p && !p.isAdmin); show('nav-notifs', !!p);
+  show('nav-requests', !!p && !p.isAdmin); show('nav-notifs', !!p); show('nav-account', !!p && !p.isAdmin);
   const nn = document.getElementById('nav-notifs'); if (nn && p && p.isAdmin) nn.href = 'admin-notifications.html';
   cached = p; if (p) refreshBadges();
   const out = document.getElementById('nav-logout');

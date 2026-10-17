@@ -2,6 +2,11 @@ import { app, auth } from './app.js';
 import { pushConfig } from './firebase-config.js';
 import { getMessaging, getToken, deleteToken, isSupported } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js';
 
+export const workerConfigured = () => !!pushConfig.workerUrl;
+export async function workerCall(path, payload) {
+  const r = await call(path, payload); let data = {}; try { data = await r.json(); } catch (e) {}
+  return { ok: r.ok, status: r.status, data };
+}
 export const pushConfigured = () => !!(pushConfig.workerUrl && pushConfig.vapidKey);
 
 async function call(path, payload) {

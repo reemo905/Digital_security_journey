@@ -11,7 +11,7 @@ else {
   const out = document.getElementById('msg');
   const fmt = (t) => (t && t.toDate) ? t.toDate().toLocaleDateString('ar') : '—';
   const ACTIONS = { invite_created: 'إنشاء رمز دعوة', invite_revoked: 'إلغاء رمز دعوة',
-    account_activated: 'تفعيل حساب', account_deactivated: 'تعطيل حساب', request_updated: 'تحديث طلب', content_saved: 'حفظ محتوى', content_deleted: 'حذف محتوى', content_published: 'نشر محتوى', content_unpublished: 'إلغاء نشر محتوى' };
+    account_activated: 'تفعيل حساب', account_deactivated: 'تعطيل حساب', request_updated: 'تحديث طلب', admin_unlocked: 'فتح قفل بيانات الطالبات', student_viewed: 'عرض بيانات طالبة', pin_changed: 'تغيير رمز الحماية', student_deleted: 'حذف حساب طالبة', password_reset: 'كلمة مرور مؤقتة لطالبة', content_saved: 'حفظ محتوى', content_deleted: 'حذف محتوى', content_published: 'نشر محتوى', content_unpublished: 'إلغاء نشر محتوى' };
   const fail = (t) => msg(out, 'error', t);
 
   const genCode = () => {
@@ -36,16 +36,6 @@ else {
       document.getElementById('invites-body').innerHTML = rows.join('') || '<tr><td colspan="6">لا توجد رموز بعد.</td></tr>';
     } catch (e) { fail('تعذّر تحميل الرموز.'); }
   }
-  async function loadAccounts() {
-    try {
-      const s = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc')));
-      document.getElementById('count-accounts').textContent = s.size;
-      document.getElementById('accounts-body').innerHTML = s.docs.map((d) => { const a = d.data();
-        return '<tr><td>' + esc(a.fullName) + '</td><td>' + esc(a.grade || '—') + '</td><td>' + (a.isActive ? 'مفعّل' : 'معطّل') +
-          '</td><td><button class="btn btn-small" data-toggle="' + esc(d.id) + '" data-to="' + (!a.isActive) + '">' +
-          (a.isActive ? 'تعطيل' : 'تفعيل') + '</button></td></tr>'; }).join('') || '<tr><td colspan="4">لا توجد حسابات طالبات بعد.</td></tr>';
-    } catch (e) { fail('تعذّر تحميل الحسابات.'); }
-  }
   async function loadAudit() {
     try {
       const s = await getDocs(query(collection(db, 'auditLog'), orderBy('createdAt', 'desc'), limit(20)));
@@ -63,7 +53,7 @@ else {
       reveal(document);
     } catch (e) {}
   }
-  const reload = () => { loadInvites(); loadAccounts(); loadAudit(); loadCounts(); };
+  const reload = () => { loadInvites(); loadAudit(); loadCounts(); };
 
   document.getElementById('form-invite').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -99,13 +89,6 @@ else {
     if (!confirm('إلغاء هذا الرمز نهائيًا؟ لن يستطيع أحد التسجيل به بعد ذلك.')) return;
     try { const b = writeBatch(db); b.update(doc(db, 'invites', t.revoke), { revoked: true }); audit(b, 'invite_revoked', t.label); await b.commit(); out.hidden = true; reload(); }
     catch (err) { fail('تعذّر إلغاء الرمز.'); }
-  });
-  document.getElementById('accounts-body').addEventListener('click', async (e) => {
-    const t = e.target.dataset || {}; if (!t.toggle) return;
-    const to = t.to === 'true';
-    if (!confirm(to ? 'تفعيل هذا الحساب؟' : 'تعطيل هذا الحساب؟ لن تستطيع صاحبته استخدام البوابة.')) return;
-    try { const b = writeBatch(db); b.update(doc(db, 'users', t.toggle), { isActive: to }); audit(b, to ? 'account_activated' : 'account_deactivated', t.toggle); await b.commit(); out.hidden = true; reload(); }
-    catch (err) { fail('تعذّر تغيير حالة الحساب.'); }
   });
   reload();
 }
