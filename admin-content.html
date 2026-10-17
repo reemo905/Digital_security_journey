@@ -1,0 +1,9 @@
+<!doctype html><html lang="ar" dir="rtl"><head><title>إدارة المحتوى — بوابة البرلمان الطلابي</title><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#0e5a58"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap"><link rel="stylesheet" href="css/style.css"></head><body>
+<a class="skip" href="#main">تخطي إلى المحتوى</a>
+<header class="top"><div class="wrap bar"><a class="brand" href="index.html"><span class="logo" aria-hidden="true">ب</span>بوابة البرلمان الطلابي</a>
+<nav aria-label="القائمة الرئيسية"><a href="index.html">الرئيسية</a><a id="nav-requests" href="requests.html" hidden>طلباتي</a><a id="nav-notifs" href="notifications.html" hidden>الإشعارات <span class="dot" id="badge-notifs" hidden></span></a><a id="nav-admin" href="admin.html" hidden>لوحة الإدارة <span class="dot" id="badge-admin" hidden></span></a><a id="nav-login" href="login.html">دخول / حساب جديد</a><a id="nav-logout" href="#" hidden>تسجيل الخروج</a></nav></div></header>
+<main id="admin-main" class="wrap" hidden><h1 id="h"></h1><p><a href="admin.html">← لوحة الإدارة</a></p><div id="tabs" class="tabs-row"></div>
+<div id="msg" class="msg" role="alert" hidden></div>
+<p><button class="btn" id="add" type="button">إضافة جديد</button></p><div id="list"></div>
+<dialog id="dlg"><div id="dlg-body"></div><div class="dlg-actions"><button class="btn" id="dlg-save" type="button">حفظ</button><button class="btn btn-ghost" id="dlg-close" type="button">إغلاق</button></div><div id="dlg-msg" class="msg" role="alert" hidden></div></dialog></main>
+<script type="module" src="js/admin-content.js"></script></body></html>
