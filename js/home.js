@@ -7,7 +7,8 @@ if (p) document.getElementById('welcome').textContent = 'أهلًا بكِ، ' +
 document.getElementById('cta-login').hidden = !!p;
 const card = (href, icon, title, text) => '<a class="card reveal" href="' + href + '"><span class="ic">' + icon + '</span><h3>' + title + '</h3><p>' + text + '</p><span class="go">فتح ←</span></a>';
 document.getElementById('services').innerHTML = TYPES.map((t) => card('service.html?type=' + t, ICONS[t], SERVICES[t].label, SERVICES[t].short)).join('') +
-  card('requests.html', ICONS.list, 'طلباتي', 'تابعي حالة كل ما أرسلتِه والردود عليه.');
+  card('requests.html', ICONS.list, 'طلباتي', 'تابعي حالة كل ما أرسلتِه والردود عليه.') +
+  card('settings.html', ICONS.event, 'الإعدادات', 'غيّري كلمة المرور والاسم والألوان وحجم الخط.');
 const I = ICONS;
 document.getElementById('more').innerHTML =
   card('content.html?c=announcements', I.message, 'الإعلانات', 'آخر ما تنشره رئيسة البرلمان.') +

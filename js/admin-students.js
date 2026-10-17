@@ -1,6 +1,6 @@
 import { db, initNav, esc, msg, busy, reveal, auditLog } from './app.js';
 import { fdate, fdt } from './content.js';
-import { unlockWithPin, pinHash, DEFAULT_PIN } from './pin.js';
+import { unlockWithPin, pinHash, DEFAULT_PIN, normPin, UNLOCK_ERR } from './pin.js';
 import { workerConfigured, workerCall } from './push.js';
 import { collection, query, orderBy, getDocs, getDoc, getCountFromServer, where, doc, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -41,10 +41,10 @@ else {
     const pin = $('pin').value, btn = e.target.querySelector('button[type=submit]'), m = $('msg-lock');
     if (!pin) return msg(m, 'error', 'أدخلي رمز الحماية.');
     busy(btn, true, 'جارٍ التحقق…');
-    try {
-      if (!(await unlockWithPin(me.uid, pin))) { busy(btn, false); return msg(m, 'error', 'رمز الحماية غير صحيح.'); }
-    } catch (err) { busy(btn, false); return msg(m, 'error', 'تعذّر التحقق. تأكدي من الاتصال وأعيدي المحاولة.'); }
-    busy(btn, false); usedDefault = pin === DEFAULT_PIN; m.hidden = true;
+    let res; try { res = await unlockWithPin(me.uid, pin); } catch (err) { res = { ok: false, reason: 'network' }; }
+    busy(btn, false);
+    if (!res.ok) return msg(m, 'error', UNLOCK_ERR[res.reason] || UNLOCK_ERR.network);
+    usedDefault = normPin(pin) === DEFAULT_PIN; m.hidden = true;
     until = Date.now() + 5 * 60 * 1000 - 3000;
     lock.hidden = true; panel.hidden = false; $('default-warn').hidden = !usedDefault;
     tick(); timer = setInterval(tick, 1000); await load();
@@ -94,7 +94,7 @@ else {
       busy(e.target, true, 'جارٍ التنفيذ…');
       const r = await workerCall('/admin/set-password', { targetUid: cur.id, newPassword: pw, pinHash: await pinHash(pin) }).catch(() => ({ ok: false, status: 0, data: {} }));
       busy(e.target, false);
-      if (r.ok) { m.className = 'msg msg-success'; m.innerHTML = 'كلمة المرور المؤقتة (تظهر مرة واحدة، سلّميها للطالبة بشكل خاص وأخبريها أن تغيّرها من «حسابي»):<p class="code" dir="ltr">' + esc(pw) + '</p>'; m.hidden = false; m.scrollIntoView({ block: 'center' }); }
+      if (r.ok) { m.className = 'msg msg-success'; m.innerHTML = 'كلمة المرور المؤقتة (تظهر مرة واحدة، سلّميها للطالبة بشكل خاص وأخبريها أن تغيّرها من «الإعدادات»):<p class="code" dir="ltr">' + esc(pw) + '</p>'; m.hidden = false; m.scrollIntoView({ block: 'center' }); }
       else msg(m, 'error', r.data.error === 'wrong_pin' ? 'رمز الحماية غير صحيح.' : 'تعذّر تنفيذ العملية. تأكدي من إعداد الـ Worker.');
     }
     if (id === 'a-del') {
