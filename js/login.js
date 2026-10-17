@@ -52,7 +52,7 @@ forms.signup.addEventListener('submit', async (e) => {
   if (pass.length < 10) return msg(out, 'error', 'كلمة المرور قصيرة. استخدمي 10 خانات على الأقل.');
   if (pass !== $('s-pass2').value) return msg(out, 'error', 'كلمتا المرور غير متطابقتين.');
   if (!/^[A-Z2-9]{10}$/.test(code)) return msg(out, 'error', 'رمز الدعوة يتكوّن من 10 أحرف وأرقام (مثل ABCDE-23456).');
-  if (!$('s-agree').checked) return msg(out, 'error', 'يلزم الاطلاع على كيفية استخدام البيانات والموافقة عليها.');
+  if (!$('s-agree').checked) return msg(out, 'error', 'يلزم الموافقة على سياسة الخصوصية وشروط الاستخدام للمتابعة.');
 
   const btn = forms.signup.querySelector('button[type=submit]'); busy(btn, true, 'جارٍ إنشاء الحساب…');
   let cred;
